@@ -61,7 +61,7 @@ sub list()
       $bind_addr = $1;
     }
   }
-  print "Found $file as $proto ...\n";
+  print "  proto $proto ...\n";
   print "  ip $bind_addr ...\n";
   close($fh);
 }
@@ -100,8 +100,9 @@ sub stop
   my @x = grep(/pid_file/, @fc);
   my $pid_file = (split(" ", $x[0]))[1];
 
-  my $pid = read_file($pid_file) or do{
-    print "Pid file does not exist $file ($pid) ...";
+  my $pid = read_file($pid_file, err_mode => "quiet") or do {
+    print "Pid file does not exist $pid_file ...\n";
+    return;
   };
 
   print "Stoping $file ($pid) ...";
