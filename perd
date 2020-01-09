@@ -1,0 +1,111 @@
+#!/usr/bin/perl
+
+use File::Slurp;
+
+
+my $action = $ARGV[0];
+
+if ($action eq "") {
+  print "hi, need params\n";
+  exit 1;
+}
+
+
+#my $config_dir = "/etc/perdition";
+my $config_dir = "/root/perd/c/";
+
+opendir(my $dh, $config_dir) || die "Can't open $config_dir: $!";
+
+while (readdir $dh) {
+  if (/\.[0123456789]\.conf$/) {
+      my $fh;
+      print "Reading $config_dir/$_ ...\n";
+      open($fh, "<$config_dir/$_");
+      my @fc = <$fh>;
+      my @x = grep(/protocol/, @fc);
+      my $proto = (split(" ", $x[0]))[1];
+
+      &do_stuff($action, "$config_dir/$_", $proto)
+  } else {
+    print "not doing:$_\n";
+  }
+}
+closedir $dh;
+
+
+sub do_stuff()
+{
+  ($action, $file, $proto) = @_;
+
+  if ($action eq "start") {
+    &start($file, $proto);
+  } elsif ($action eq "stop") {
+    &stop($file, $proto);
+  } elsif ($action eq "list") {
+    &list($file, $proto);
+  } elsif ($action eq "status") {
+  } elsif ($action eq "about") {
+    print "Perdition start script\n";
+  }
+}
+
+sub list()
+{
+  ($file, $proto) = @_;
+  my $bind_addr;
+  open(my $fh, "<$file");
+  my @fc = <$fh>;
+  foreach $i (grep($_ =~ "bind_address", @fc)) {
+    $bind_addr = $i;
+    if($i =~ /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/) {
+      $bind_addr = $1;
+    }
+  }
+  print "Found $file as $proto ...\n";
+  print "  ip $bind_addr ...\n";
+  close($fh);
+}
+
+sub start()
+{
+  ($file, $proto) = @_;
+
+  print "Starting $file as $proto ...";
+  if ($proto eq "imap4s") {
+     $DAEMON = "/usr/sbin/perdition.imaps";
+     system($DAEMON, "-f", "$file");
+  } elsif ($proto eq "imap4") {
+     $DAEMON = "/usr/sbin/perdition.imap4";
+     system($DAEMON, "-f", "$file");
+  } else {
+    print "tbd\n";
+  }
+
+  if ($? == -1) {
+    print "failed to execute: $!\n";
+  } elsif ($? & 127) {
+    printf "child died with signal %d, %s coredump\n",
+      ($? & 127),  ($? & 128) ? 'with' : 'without';
+  } else {
+    printf "[done] %d\n", $? >> 8;
+  }
+}
+
+sub stop
+{
+  ($file, $proto) = @_;
+
+  open($fh, "<$file");
+  my @fc = <$fh>;
+  my @x = grep(/pid_file/, @fc);
+  my $pid_file = (split(" ", $x[0]))[1];
+
+  my $pid = read_file($pid_file) or do{
+    print "Pid file does not exist $file ($pid) ...";
+  };
+
+  print "Stoping $file ($pid) ...";
+  system ("/bin/kill", $pid);
+  printf "[done] %d\n", $? >> 8;
+
+}
